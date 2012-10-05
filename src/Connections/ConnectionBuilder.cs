@@ -14,7 +14,7 @@ namespace FluentCassandra.Connections
 		/// <param name="host"></param>
 		/// <param name="port"></param>
 		/// <param name="timeout"></param>
-		public ConnectionBuilder(string keyspace, string host, int port = Server.DefaultPort, int connectionTimeout = Server.DefaultTimeout, bool pooling = false, int minPoolSize = 0, int maxPoolSize = 100, int connectionLifetime = 0, ConnectionType connectionType = ConnectionType.Framed, int bufferSize = 1024, ConsistencyLevel read = ConsistencyLevel.QUORUM, ConsistencyLevel write = ConsistencyLevel.QUORUM, string cqlVersion = FluentCassandra.Connections.CqlVersion.ServerDefault, bool compressCqlQueries = true, string username = null, string password = null)
+        public ConnectionBuilder(string keyspace, string host, int port = Server.DefaultPort, int connectionTimeout = Server.DefaultTimeout, bool pooling = false, int minPoolSize = 0, int maxPoolSize = 100, int connectionLifetime = 0, ConnectionType connectionType = ConnectionType.Framed, int bufferSize = 1024, ConsistencyLevel read = ConsistencyLevel.QUORUM, ConsistencyLevel write = ConsistencyLevel.QUORUM, string cqlVersion = FluentCassandra.Connections.CqlVersion.ServerDefault, bool compressCqlQueries = true, string username = null, string password = null, uint circuitBreakerErrorThresholdCount = 5, uint circuitBreakerRetryIntervalMs = 60000)
 		{
 			Keyspace = keyspace;
 			Servers = new List<Server>() { new Server(host, port) };
@@ -31,11 +31,13 @@ namespace FluentCassandra.Connections
 			CompressCqlQueries = compressCqlQueries;
 			Username = username;
 			Password = password;
+            ServerCircuitBreakerErrorThresholdCount = circuitBreakerErrorThresholdCount;
+            ServerCircuitBreakerRetryIntervalMs = circuitBreakerRetryIntervalMs;
 
 			ConnectionString = GetConnectionString();
 		}
 
-		public ConnectionBuilder(string keyspace, Server server, bool pooling = false, int minPoolSize = 0, int maxPoolSize = 100, int connectionLifetime = 0, ConnectionType connectionType = ConnectionType.Framed, int bufferSize = 1024, ConsistencyLevel read = ConsistencyLevel.QUORUM, ConsistencyLevel write = ConsistencyLevel.QUORUM, string cqlVersion = FluentCassandra.Connections.CqlVersion.ServerDefault, bool compressCqlQueries = true, string username = null, string password = null)
+        public ConnectionBuilder(string keyspace, Server server, bool pooling = false, int minPoolSize = 0, int maxPoolSize = 100, int connectionLifetime = 0, ConnectionType connectionType = ConnectionType.Framed, int bufferSize = 1024, ConsistencyLevel read = ConsistencyLevel.QUORUM, ConsistencyLevel write = ConsistencyLevel.QUORUM, string cqlVersion = FluentCassandra.Connections.CqlVersion.ServerDefault, bool compressCqlQueries = true, string username = null, string password = null, uint circuitBreakerErrorThresholdCount = 5, uint circuitBreakerRetryIntervalMs = 60000)
 		{
 			Keyspace = keyspace;
 			Servers = new List<Server>() { server };
@@ -52,6 +54,8 @@ namespace FluentCassandra.Connections
 			CompressCqlQueries = compressCqlQueries;
 			Username = username;
 			Password = password;
+            ServerCircuitBreakerErrorThresholdCount = circuitBreakerErrorThresholdCount;
+            ServerCircuitBreakerRetryIntervalMs = circuitBreakerRetryIntervalMs;
 
 			ConnectionString = GetConnectionString();
 		}
@@ -315,7 +319,53 @@ namespace FluentCassandra.Connections
 
 			#endregion
 
-			// This must be last because it uses fields from above
+            #region ServerCircuitBreakerErrorThresholdCount
+            if (!pairs.ContainsKey("CircuitBreakerErrorThresholdCount"))
+            {
+                ServerCircuitBreakerErrorThresholdCount = 5;
+            }
+            else
+            {
+                uint circuitBreakerErrorThresholdCount;
+
+                if (!UInt32.TryParse(pairs["CircuitBreakerErrorThresholdCount"], out circuitBreakerErrorThresholdCount))
+                {
+                    throw new CassandraException("CircuitBreakerErrorThresholdCount is not valid.");
+                }
+
+                if (circuitBreakerErrorThresholdCount < 0)
+                {
+                    circuitBreakerErrorThresholdCount = 5;
+                }
+
+                ServerCircuitBreakerErrorThresholdCount = circuitBreakerErrorThresholdCount;
+            }
+            #endregion
+
+            #region ServerCircuitBreakerRetryIntervalMs
+            if (!pairs.ContainsKey("CircuitBreakerRetryIntervalMs"))
+            {
+                ServerCircuitBreakerRetryIntervalMs = 60000;
+            }
+            else
+            {
+                uint circuitBreakerRetryIntervalMs;
+
+                if (!UInt32.TryParse(pairs["CircuitBreakerRetryIntervalMs"], out circuitBreakerRetryIntervalMs))
+                {
+                    throw new CassandraException("CircuitBreakerRetryIntervalMs is not valid.");
+                }
+
+                if (circuitBreakerRetryIntervalMs < 0)
+                {
+                    circuitBreakerRetryIntervalMs = 60000;
+                }
+
+                ServerCircuitBreakerRetryIntervalMs = circuitBreakerRetryIntervalMs;
+            }
+            #endregion
+
+            // This must be last because it uses fields from above
 			#region Server
 
 			Servers = new List<Server>();
@@ -372,6 +422,10 @@ namespace FluentCassandra.Connections
 
 			b.AppendFormat(format, "Username", Username);
 			b.AppendFormat(format, "Password", Password);
+
+            b.AppendFormat(format, "CircuitBreakerErrorThresholdCount", ServerCircuitBreakerErrorThresholdCount);
+            b.AppendFormat(format, "CircuitBreakerRetryIntervalMs", ServerCircuitBreakerRetryIntervalMs);
+            
 
 			return b.ToString();
 		}
@@ -460,5 +514,23 @@ namespace FluentCassandra.Connections
 		/// A unique identifier for the connection builder.
 		/// </summary>
 		public string Uuid { get { return ConnectionString; } }
+
+        /// <summary>
+        /// The number of errors a server can incur before the circuit breaker trips.
+        /// </summary>
+        public uint ServerCircuitBreakerErrorThresholdCount 
+        { 
+            get;
+            private set;
+        }
+
+        /// <summary>
+        /// The interval (in ms) to retry a tripped server.
+        /// </summary>
+        public uint ServerCircuitBreakerRetryIntervalMs
+        {
+            get;
+            private set;
+        }
 	}
 }

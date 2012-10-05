@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using FluentCassandra.CircuitBreaker;
+using System.Linq;
 
 namespace FluentCassandra.Connections
 {
@@ -11,12 +13,15 @@ namespace FluentCassandra.Connections
 		private List<Server> _servers;
 		private Queue<Server> _serverQueue;
 		private HashSet<Server> _blackListed;
+        private CircuitBreakerManager _circuitBreakerManager;
 
 		public RoundRobinServerManager(IConnectionBuilder builder)
 		{
 			_servers = new List<Server>(builder.Servers);
 			_serverQueue = new Queue<Server>(_servers);
 			_blackListed = new HashSet<Server>();
+            _circuitBreakerManager = new CircuitBreakerManager(onStateChanged: CircuitStateChanged);
+            InitializeCircuitBreakers(builder.ServerCircuitBreakerErrorThresholdCount, builder.ServerCircuitBreakerRetryIntervalMs);
 		}
 
 		private bool IsBlackListed(Server server)
@@ -24,9 +29,64 @@ namespace FluentCassandra.Connections
 			return _blackListed.Contains(server);
 		}
 
-		#region IServerManager Members
+        /// <summary>
+        /// Generates a circuit breaker for each server in this manager.
+        /// </summary>
+        private void InitializeCircuitBreakers(uint serverErrorThresholdCount, uint serverRetryIntervalMs)
+        {
+            foreach (Server server in _servers)
+            {
+                if (!_circuitBreakerManager.AddCircuitBreakerByKey(server.Id, server.Host, serverErrorThresholdCount, serverRetryIntervalMs))
+                {
+                    System.Diagnostics.Trace.TraceError(string.Format("Could not add duplicate circuit breaker key '{0}'.", server.ToString()));
+                }
+            }
+        }
 
-		public bool HasNext
+        /// <summary>
+        /// Hanles the circuit breaker StateChanged event.
+        /// </summary>
+        /// <param name="source">source of the event</param>
+        /// <param name="args">info about the state of the circuit breaker when the even happened.</param>
+        private void CircuitStateChanged(object source, CircuitStateChangedEventArgs args)
+        {
+            if (args != null)
+            {
+                Server server = _servers.SingleOrDefault(s => s.Id.Equals(args.NodeId, StringComparison.OrdinalIgnoreCase));
+                if (server != null)
+                {
+                    switch (args.NewState)
+                    {
+                        case CircuitBreakerState.Open:
+                            BlackList(server);
+                            break;
+                        case CircuitBreakerState.Closed:
+                        case CircuitBreakerState.HalfOpen:
+                            WhiteList(server); // let the system try it again.
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                System.Diagnostics.Trace.TraceError("RoundRobinServerManager did not respond to a circuit breaker state change because args was null.");
+            }
+        }
+
+        /// <summary>
+        /// Let all subscribers know the state of one of the servers has changed.
+        /// </summary>
+        private void DispatchStateChangedEvent(ServerStateChangedEventArgs args)
+        {
+            if (ServerStateChanged != null)
+            {
+                ServerStateChanged(this, args);
+            }
+        }
+
+        #region IServerManager Members
+
+        public bool HasNext
 		{
             get { lock (_lock) { return (_serverQueue.Count - _blackListed.Count) > 0; } }
 		}
@@ -61,20 +121,63 @@ namespace FluentCassandra.Connections
 			}
 		}
 
+        /// <summary>
+        /// Notify the server manager that an error has occurred for the given server.
+        /// </summary>
+        /// <param name="server">The server that was being used when the error occurred.</param>
+        /// <param name="exc">The exception that accompanies the error, or null if not available.</param>
 		public void ErrorOccurred(Server server, Exception exc = null)
 		{
-			Debug.WriteLineIf(exc != null, exc, "connection");
-			BlackList(server);
+            Debug.WriteLineIf(exc != null, string.Format("RoundRobinServerManager error: {0}\n\tStackTrace: {1}", exc.Message, exc.StackTrace), "connection");
+            _circuitBreakerManager.ForwardErrorOccurredToBreaker(server.Id);
 		}
 
 		public void BlackList(Server server)
 		{
-			Debug.WriteLine(server + " has been blacklisted", "connection");
 			lock (_lock)
 			{
-				_blackListed.Add(server);
+                if (_blackListed.Add(server))
+                {
+                    System.Diagnostics.Trace.TraceWarning("Blacklisted server: {0}.", server);
+                    DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Blacklisted, string.Empty));
+                }
 			}
 		}
+
+        /// <summary>
+        /// Notify the server manager to immediately whitelist the given server.
+        /// </summary>
+        /// <param name="server">The server that should be whitelisted..</param>
+        public void WhiteList(Server server)
+        {
+            lock (_lock)
+            {
+                if (_blackListed.Remove(server))
+                {
+                    // Server was blacklisted, so double check the queue and add it back in! Here we go.
+                    if (!_serverQueue.Contains(server))
+                    {
+                        _serverQueue.Enqueue(server);
+                        System.Diagnostics.Trace.TraceInformation("RRSMgr Whitelisted server: {0}.", server);
+                        DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Whitelisted, string.Empty));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Notifies this manager that an operation succeeded on the managed server specified by <paramref name="server"/>.
+        /// </summary>
+        /// <param name="server">The server that the operation was performed on.</param>
+        public void OperationSucceeded(Server server)
+        {
+            _circuitBreakerManager.ForwardOperationSuccessToBreaker(server.Id);
+        }
+
+        /// <summary>
+        /// Dispatches an event when the state of one of the managed servers changes.
+        /// </summary>
+        public event EventHandler<ServerStateChangedEventArgs> ServerStateChanged;
 
 		public void Remove(Server server)
 		{

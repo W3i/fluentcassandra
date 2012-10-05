@@ -106,6 +106,12 @@
     <Compile Include="CassandraSuperColumnFamilyOperations.cs" />
     <Compile Include="CassandraSuperColumnFamily.cs" />
     <Compile Include="CassandraTokenRange.cs" />
+    <Compile Include="CircuitBreaker\CircuitBreaker.cs" />
+    <Compile Include="CircuitBreaker\CircuitBreakerManager.cs" />
+    <Compile Include="CircuitBreaker\CircuitBreakerState.cs" />
+    <Compile Include="CircuitBreaker\CircuitStateChangedEventArgs.cs" />
+    <Compile Include="CircuitBreaker\OpenCircuitException.cs" />
+    <Compile Include="CircuitBreaker\OperationFailedException.cs" />
     <Compile Include="Connections\CassandraConnectionException.cs" />
     <Compile Include="Connections\Connection.cs" />
     <Compile Include="Connections\ConnectionBuilder.cs" />
@@ -121,6 +127,8 @@
     <Compile Include="Connections\Server.cs" />
     <Compile Include="Connections\IServerManager.cs" />
     <Compile Include="Connections\RoundRobinServerManager.cs" />
+    <Compile Include="Connections\ServerState.cs" />
+    <Compile Include="Connections\ServerStateChangedEventArgs.cs" />
     <Compile Include="Connections\TimedLock.cs">
       <SubType>Code</SubType>
     </Compile>

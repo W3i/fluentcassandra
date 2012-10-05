@@ -41,9 +41,15 @@ namespace FluentCassandra.Connections
 				}
 				catch (SocketException exc)
 				{
-					Servers.ErrorOccurred(conn.Server, exc);
-					Close(conn);
-					conn = null;
+                    if (conn != null)
+                    {
+                        if (conn.Server != null)
+                        {
+                            Servers.ErrorOccurred(conn.Server, exc);
+                        }
+                        Close(conn);
+                        conn = null;
+                    }
 				}
 			}
 
@@ -53,19 +59,68 @@ namespace FluentCassandra.Connections
 			return conn;
 		}
 
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <returns></returns>
-		public override IConnection CreateConnection()
+        /// <summary>
+        /// Obtain a connection from next available server.
+        /// </summary>
+        /// <returns>A connection</returns>
+        /// <remarks>Will return <c>null</c> if no servers are available.</remarks>
+        public override IConnection CreateConnection()
 		{
-			if (!Servers.HasNext)
-				return null;
+            if (!Servers.HasNext)
+            {
+                // No server available to create a connection.
+                return null;
+            }
 
 			var server = Servers.Next();
+
+            if (server == null)
+            {
+                // If for some reason the server was blacklisted or became unavailable after we have checked HasNext, return null
+                return null;
+            }
+
 			var conn = new Connection(server, ConnectionBuilder);
 
 			return conn;
-		}
-	}
+        }
+
+        /// <summary>
+        /// Notify this provider that an error occurred with one of the connections.
+        /// </summary>
+        /// <param name="connection">The connection that caused an error</param>
+        /// <param name="exc">the optional exception that happened</param>
+        public override void ErrorOccurred(IConnection connection, Exception exc = null)
+        {
+            if (connection != null)
+            {
+                if (connection.Server != null)
+                {
+                    // Let the server manager know that a connection from the given server had an error.
+                    Servers.ErrorOccurred(connection.Server, exc);
+                }
+
+                if (connection.IsOpen)
+                {
+                    Close(connection);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Notify this provider that an operation carried out on one of the connections succeeded..
+        /// </summary>
+        /// <param name="connection">The connection that successfully performed an operation.</param>
+        public override void OperationSucceeded(IConnection connection)
+        {
+            if (connection != null)
+            {
+                if (connection.Server != null)
+                {
+                    // Let the server manager know that a connection from the given server had a successful operation.
+                    Servers.OperationSucceeded(connection.Server);
+                }
+            }
+        }
+    }
 }

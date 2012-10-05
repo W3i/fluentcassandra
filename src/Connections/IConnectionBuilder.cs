@@ -27,5 +27,15 @@ namespace FluentCassandra.Connections
 		string Password { get; }
 
 		string Uuid { get; }
-	}
+
+        /// <summary>
+        /// The number of errors a server can incur before the circuit breaker trips.
+        /// </summary>
+        uint ServerCircuitBreakerErrorThresholdCount { get; }
+
+        /// <summary>
+        /// The interval (in ms) to retry a tripped server.
+        /// </summary>
+        uint ServerCircuitBreakerRetryIntervalMs { get; }
+    }
 }
