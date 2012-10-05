@@ -59,6 +59,10 @@
     <Compile Include="Bugs\Issue65ServerTimeoutLost.cs" />
     <Compile Include="CassandraDatabaseSetupFixture.cs" />
     <Compile Include="CassandraQueryTest.cs" />
+    <Compile Include="CircuitBreaker\CircuitBreakerManagerTest.cs" />
+    <Compile Include="CircuitBreaker\CircuitBreakerTest.cs" />
+    <Compile Include="CircuitBreaker\CircuitStateChangedEventArgsTest.cs" />
+    <Compile Include="Connections\ServerStateChangedEventArgsTest.cs" />
     <Compile Include="Connections\ConnectionBuilderTests.cs" />
     <Compile Include="Connections\ConnectionProviderTests.cs" />
     <Compile Include="Connections\NormalConnectionProviderTests.cs" />
