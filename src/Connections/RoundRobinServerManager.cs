@@ -14,14 +14,18 @@ namespace FluentCassandra.Connections
 		private Queue<Server> _serverQueue;
 		private HashSet<Server> _blackListed;
         private CircuitBreakerManager _circuitBreakerManager;
+        private uint _serverCircuitBreakerErrorThresholdCount;
+        private uint _serverCircuitBreakerRetryIntervalMs;
 
 		public RoundRobinServerManager(IConnectionBuilder builder)
 		{
 			_servers = new List<Server>(builder.Servers);
 			_serverQueue = new Queue<Server>(_servers);
 			_blackListed = new HashSet<Server>();
+            _serverCircuitBreakerErrorThresholdCount = builder.ServerCircuitBreakerErrorThresholdCount;
+            _serverCircuitBreakerRetryIntervalMs = builder.ServerCircuitBreakerRetryIntervalMs;
             _circuitBreakerManager = new CircuitBreakerManager(onStateChanged: CircuitStateChanged);
-            InitializeCircuitBreakers(builder.ServerCircuitBreakerErrorThresholdCount, builder.ServerCircuitBreakerRetryIntervalMs);
+            InitializeCircuitBreakers(_serverCircuitBreakerErrorThresholdCount, _serverCircuitBreakerRetryIntervalMs);
 		}
 
 		private bool IsBlackListed(Server server)
@@ -36,10 +40,21 @@ namespace FluentCassandra.Connections
         {
             foreach (Server server in _servers)
             {
-                if (!_circuitBreakerManager.AddCircuitBreakerByKey(server.Id, server.Host, serverErrorThresholdCount, serverRetryIntervalMs))
-                {
-                    System.Diagnostics.Trace.TraceError(string.Format("Could not add duplicate circuit breaker key '{0}'.", server.ToString()));
-                }
+                CreateAndAddCircuitBreaker(serverErrorThresholdCount, serverRetryIntervalMs, server);
+            }
+        }
+
+        /// <summary>
+        /// Creates a new circuit breaker for the given server and adds it to the collection of breakers for this manager.
+        /// </summary>
+        /// <param name="serverErrorThresholdCount">Breaker error threshold</param>
+        /// <param name="serverRetryIntervalMs">Breaker retry interval</param>
+        /// <param name="server">Server the breaker is for</param>
+        private void CreateAndAddCircuitBreaker(uint serverErrorThresholdCount, uint serverRetryIntervalMs, Server server)
+        {
+            if (!_circuitBreakerManager.AddCircuitBreakerByKey(server.Id, server.Host, serverErrorThresholdCount, serverRetryIntervalMs))
+            {
+                System.Diagnostics.Trace.TraceError(string.Format("Could not add duplicate circuit breaker key '{0}'.", server.ToString()));
             }
         }
 
@@ -118,6 +133,9 @@ namespace FluentCassandra.Connections
 			{
 				_servers.Add(server);
 				_serverQueue.Enqueue(server);
+
+                // Add a new circuit breaker for the server
+                CreateAndAddCircuitBreaker(_serverCircuitBreakerErrorThresholdCount, _serverCircuitBreakerRetryIntervalMs, server);
 			}
 		}
 
@@ -192,6 +210,10 @@ namespace FluentCassandra.Connections
 					if (!_blackListed.Contains(s))
 						_serverQueue.Enqueue(s);
 				}
+
+                // Clean up the circuit breaker for this removed node.
+                CircuitBreaker.CircuitBreaker removed;
+                _circuitBreakerManager.RemoveCircuitBreakerByKey(server.Id, out removed);
 			}
 		}
 
