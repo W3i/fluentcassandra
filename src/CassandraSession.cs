@@ -10,6 +10,13 @@ namespace FluentCassandra
 	public class CassandraSession : IDisposable
 	{
 		private IConnection _connection;
+        private static HashSet<Type> _exceptionTypesConsideredConnectionFailures = new HashSet<Type> 
+                                                                          {
+                                                                              typeof(System.IO.IOException),
+                                                                              typeof(System.Net.Sockets.SocketException),
+                                                                              typeof(Thrift.Transport.TTransportException),
+                                                                              typeof(Thrift.TApplicationException)
+                                                                          };
 
 		/// <summary>
 		/// 
@@ -184,8 +191,17 @@ namespace FluentCassandra
 			TResult result;
 			bool success = action.TryExecute(out result);
 
-			if (!success)
-				LastError = action.Error;
+            if (!success)
+            {
+                LastError = action.Error;
+                // May need to tell the connection provider that this connection had an error
+                HandlePossibleConnectionFailure(_connection, LastError);
+            }
+            else
+            {
+                // Let the provider know that it worked!
+                ConnectionProvider.OperationSucceeded(_connection);
+            }
 
 			if (!success && (throwOnError ?? ThrowErrors))
 				throw action.Error;
@@ -193,9 +209,26 @@ namespace FluentCassandra
 			return result;
 		}
 
-		#region IDisposable Members
+        #region Private Methods
+        /// <summary>
+        /// Determines if the inner exception wrapped by <paramref name="failure"/> is considered a problem with the connection to the server, and if so,
+        /// notifies the connection provider.
+        /// </summary>
+        /// <param name="connection">The connection that had an error.</param>
+        /// <param name="failure">The failure exception that occurred.</param>
+        private void HandlePossibleConnectionFailure(IConnection connection, CassandraException failure)
+        {
+            if(connection != null && failure != null && failure.InnerException != null
+                && _exceptionTypesConsideredConnectionFailures.Contains(failure.InnerException.GetType()))
+            {
+                ConnectionProvider.ErrorOccurred(connection, failure);
+            }
+        }
+        #endregion
 
-		/// <summary>
+        #region IDisposable Members
+
+        /// <summary>
 		/// 
 		/// </summary>
 		public bool WasDisposed
