@@ -7,8 +7,6 @@ using System.Threading;
 
 namespace FluentCassandra.CircuitBreaker.Tests
 {
-    
-    
     /// <summary>
     ///This is a test class for CircuitBreakerTest and is intended
     ///to contain all CircuitBreakerTest Unit Tests
@@ -45,7 +43,7 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentNullException>(delegate()
             {
-            new CircuitBreaker("test_id", null, 5, 60000);
+                new CircuitBreaker("test_id", null, 5, 60000);
             });
 
             Assert.Equal("node", thrown.ParamName);
@@ -56,8 +54,8 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentNullException>(delegate()
             {
-            new CircuitBreaker("test_id", string.Empty, 5, 60000);
-                });
+                new CircuitBreaker("test_id", string.Empty, 5, 60000);
+            });
 
             Assert.Equal("node", thrown.ParamName);
         }
@@ -67,7 +65,8 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentNullException>(delegate()
             {
-            new CircuitBreaker(null, "test", 5, 60000);});
+                new CircuitBreaker(null, "test", 5, 60000);
+            });
 
             Assert.Equal("nodeId", thrown.ParamName);
         }
@@ -77,8 +76,8 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentNullException>(delegate()
             {
-            new CircuitBreaker(string.Empty, "test", 5, 60000);
-                });
+                new CircuitBreaker(string.Empty, "test", 5, 60000);
+            });
 
             Assert.Equal("nodeId", thrown.ParamName);
         }
@@ -88,8 +87,8 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentOutOfRangeException>(delegate()
             {
-            new CircuitBreaker("testid", "test", 0, 60000);
-                });
+                new CircuitBreaker("testid", "test", 0, 60000);
+            });
 
             Assert.Equal("threshold", thrown.ParamName);
             Assert.Contains("Threshold must be at least one", thrown.Message);
@@ -100,7 +99,7 @@ namespace FluentCassandra.CircuitBreaker.Tests
         {
             var thrown = Assert.Throws<ArgumentOutOfRangeException>(delegate()
             {
-            new CircuitBreaker("testid", "test", 5, 0);
+                new CircuitBreaker("testid", "test", 5, 0);
             });
 
             Assert.Equal("timeout", thrown.ParamName);
@@ -126,7 +125,7 @@ namespace FluentCassandra.CircuitBreaker.Tests
             CircuitBreaker cb = new CircuitBreaker("test_id", "test", 5, 60000);
             var thrown = Assert.Throws<ArgumentOutOfRangeException>(delegate()
             {
-            cb.Threshold = 0;
+                cb.Threshold = 0;
             });
 
             Assert.Equal("value", thrown.ParamName);
@@ -151,7 +150,7 @@ namespace FluentCassandra.CircuitBreaker.Tests
             CircuitBreaker cb = new CircuitBreaker("test_id", "test", 5, 60000);
             var thrown = Assert.Throws<ArgumentException>(delegate()
             {
-            cb.Node = null;
+                cb.Node = null;
             });
 
             Assert.Contains("Node cannot be blank", thrown.Message);
@@ -236,11 +235,11 @@ namespace FluentCassandra.CircuitBreaker.Tests
             for (int i = 0; i < cb.Threshold + 5; i++)
             {
                 cb.FailureOccurred();
-                if (i+1 < cb.Threshold)
+                if (i + 1 < cb.Threshold)
                 {
                     Assert.Equal(CircuitBreakerState.Closed, cb.State);
                 }
-                if (i+1 == cb.Threshold + 1) // Closes on next failure after threshold.
+                if (i + 1 == cb.Threshold + 1) // Closes on next failure after threshold.
                 {
                     Assert.Equal(CircuitBreakerState.Open, cb.State);
                 }

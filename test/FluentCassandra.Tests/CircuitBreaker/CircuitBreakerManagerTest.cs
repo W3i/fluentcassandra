@@ -2,7 +2,7 @@
 using Xunit;
 using System;
 
-namespace FluentCassandra.CircuitBreakerTests
+namespace FluentCassandra.CircuitBreaker.Tests
 {
 
 
@@ -107,7 +107,7 @@ namespace FluentCassandra.CircuitBreakerTests
             uint breakerResetIntervalMs = 1000;
             target.AddCircuitBreakerByKey(key, nodeName, failureThresholdCount, breakerResetIntervalMs);
 
-            CircuitBreaker.CircuitBreaker cb = target.GetCircuitBreakerByKey(key);
+            CircuitBreaker cb = target.GetCircuitBreakerByKey(key);
             cb.Trip(); // manually open
             Assert.Equal(CircuitBreakerState.Open, cb.State);
             System.Threading.Thread.Sleep(1500);
@@ -163,7 +163,7 @@ namespace FluentCassandra.CircuitBreakerTests
                 EventHandler<CircuitStateChangedEventArgs> onStateChanged = new EventHandler<CircuitStateChangedEventArgs>((obj, evt) => { });
                 EventHandler onServiceLevelChanged = new EventHandler((obj, args) => { });
                 CircuitBreakerManager defaultTarget = new CircuitBreakerManager(onStateChanged, onServiceLevelChanged);
-                CircuitBreaker.CircuitBreaker remove;
+                CircuitBreaker remove;
                 defaultTarget.RemoveCircuitBreakerByKey(string.Empty, out remove);
             });
 
@@ -181,7 +181,7 @@ namespace FluentCassandra.CircuitBreakerTests
                 EventHandler<CircuitStateChangedEventArgs> onStateChanged = new EventHandler<CircuitStateChangedEventArgs>((obj, evt) => { });
                 EventHandler onServiceLevelChanged = new EventHandler((obj, args) => { });
                 CircuitBreakerManager defaultTarget = new CircuitBreakerManager(onStateChanged, onServiceLevelChanged);
-                CircuitBreaker.CircuitBreaker remove;
+                CircuitBreaker remove;
                 defaultTarget.RemoveCircuitBreakerByKey(null, out remove);
             });
 
@@ -202,7 +202,7 @@ namespace FluentCassandra.CircuitBreakerTests
             uint failureThresholdCount = 2;
             uint breakerResetIntervalMs = 1000;
             defaultTarget.AddCircuitBreakerByKey(key, nodeName, failureThresholdCount, breakerResetIntervalMs);
-            CircuitBreaker.CircuitBreaker actual;
+            CircuitBreaker actual;
             actual = defaultTarget.GetCircuitBreakerByKey(key);
             Assert.NotNull(actual);
             Assert.Equal(key, actual.NodeId);
@@ -228,8 +228,8 @@ namespace FluentCassandra.CircuitBreakerTests
             uint failureThresholdCount = 2;
             uint breakerResetIntervalMs = 1000;
             defaultTarget.AddCircuitBreakerByKey(key, nodeName, failureThresholdCount, breakerResetIntervalMs);
-            CircuitBreaker.CircuitBreaker addedCB;
-            CircuitBreaker.CircuitBreaker removedBreaker = null;
+            CircuitBreaker addedCB;
+            CircuitBreaker removedBreaker = null;
             addedCB = defaultTarget.GetCircuitBreakerByKey(key);
             Assert.NotNull(addedCB);
 
