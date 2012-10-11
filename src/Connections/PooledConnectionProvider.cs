@@ -166,11 +166,42 @@ namespace FluentCassandra.Connections
                     case ServerState.Blacklisted:
                         HandleServerBlacklisted(args.ServerId, args.Host);
                         break;
+                    case ServerState.Greylisted:
+                        HandleServerGreylisted(args.Server);
+                        break;
                 }
             }
             else
             {
                 System.Diagnostics.Trace.TraceWarning("Pooled connection provider did not respond to a server state change because passed event args was null.");
+            }
+        }
+
+        /// <summary>
+        /// Takes any neccessary action on the pool to retry the greylisted server just once.
+        /// </summary>
+        /// <param name="server">The server that was greylisted and needs to be retried.</param>
+        private void HandleServerGreylisted(Server server)
+        {
+            // Force a single connection into the pool so that the app tries the machine again. It should only be used once or at most a handful of times because
+            // a single success will result in whitelisting, and failure in re-blacklisting.
+            IConnection conn = null;
+            try
+            {
+                System.Diagnostics.Trace.TraceInformation("Attempting to create a new connection to greylisted server [{0]} to retry it.");
+                conn = new Connection(server, ConnectionBuilder);
+                _freeConnections.Enqueue(conn);
+            }
+            catch (System.Net.Sockets.SocketException exc)
+            {
+                System.Diagnostics.Trace.TraceWarning("Unable to reconnect to greylisted server [{0}]; Message: {1}",
+                                                      server, exc.Message);
+                // Opening the connection failed.  Notify the server manager, which will result in a blacklist.
+                Servers.ErrorOccurred(server, exc);
+                if (conn != null)
+                {
+                    Close(conn);
+                }
             }
         }
 

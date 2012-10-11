@@ -76,8 +76,10 @@ namespace FluentCassandra.Connections
                             BlackList(server);
                             break;
                         case CircuitBreakerState.Closed:
+                            WhiteList(server); // let the system use it again.
+                            break;
                         case CircuitBreakerState.HalfOpen:
-                            WhiteList(server); // let the system try it again.
+                            GreyList(server); // let the system try it again.
                             break;
                     }
                 }
@@ -97,6 +99,18 @@ namespace FluentCassandra.Connections
             {
                 ServerStateChanged(this, args);
             }
+        }
+
+        /// <summary>
+        /// Puts the server in a state where it can be tried again,
+        /// in order to determine if it should be whitelisted.
+        /// </summary>
+        /// <param name="server">The server instance to greylist.</param>
+        private void GreyList(Server server)
+        {
+            // Don't need to do anything for this manager - we are leaving it blacklisted.
+            // ConnectionPools or other listeners can choose how to retry the server.
+            DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Greylisted, string.Empty));
         }
 
         #region IServerManager Members

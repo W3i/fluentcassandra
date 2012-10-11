@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Net.Sockets;
 
 namespace FluentCassandra.Connections
 {
 	public class NormalConnectionProvider : ConnectionProvider
 	{
+	    private ConcurrentQueue<IConnection> _retryQueue;
 		/// <summary>
 		/// 
 		/// </summary>
@@ -16,6 +18,8 @@ namespace FluentCassandra.Connections
 				throw new CassandraException("You must specify a timeout when using multiple servers.");
 
 			ConnectionTimeout = builder.ConnectionTimeout;
+            _retryQueue = new ConcurrentQueue<IConnection>();
+            Servers.ServerStateChanged += HandleServerStateChanged;
 		}
 
 		/// <summary>
@@ -31,7 +35,7 @@ namespace FluentCassandra.Connections
 		{
 			IConnection conn = null;
 
-			while (Servers.HasNext)
+			while (Servers.HasNext || _retryQueue.Count > 0)
 			{
 				try
 				{
@@ -66,13 +70,23 @@ namespace FluentCassandra.Connections
         /// <remarks>Will return <c>null</c> if no servers are available.</remarks>
         public override IConnection CreateConnection()
 		{
-            if (!Servers.HasNext)
+            if (!Servers.HasNext && _retryQueue.Count == 0)
             {
                 // No server available to create a connection.
                 return null;
             }
 
-			var server = Servers.Next();
+            if(_retryQueue.Count > 0)
+            {
+                IConnection connection;
+                if(_retryQueue.TryDequeue(out connection) && connection != null)
+                {
+                    // Just return the retry connection.
+                    return connection;
+                }
+            }
+
+            var server = Servers.Next();
 
             if (server == null)
             {
@@ -119,6 +133,54 @@ namespace FluentCassandra.Connections
                 {
                     // Let the server manager know that a connection from the given server had a successful operation.
                     Servers.OperationSucceeded(connection.Server);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles ServerStateChanged events coming from the server manager.
+        /// </summary>
+        /// <param name="source">The event source.</param>
+        /// <param name="args">The data associated with the event.</param>
+        private void HandleServerStateChanged(object source, ServerStateChangedEventArgs args)
+        {
+            if (args != null)
+            {
+                if(args.NewState == ServerState.Greylisted)
+                {
+                    HandleServerGreylisted(args.Server);
+                }
+            }
+            else
+            {
+                System.Diagnostics.Trace.TraceWarning("Normal connection provider did not respond to a server state change because passed event args was null.");
+            }
+        }
+
+        /// <summary>
+        /// Takes any neccessary action to retry the greylisted server just once.
+        /// </summary>
+        /// <param name="server">The server that was greylisted and needs to be retried.</param>
+        private void HandleServerGreylisted(Server server)
+        {
+            // Force a single connection into the mix so that the app tries the machine again. It should only be used once or at most a handful of times because
+            // a single success will result in whitelisting, and failure in re-blacklisting.
+            IConnection conn = null;
+            try
+            {
+                System.Diagnostics.Trace.TraceInformation("Attempting to create a new connection to greylisted server [{0]} to retry it.");
+                conn = new Connection(server, ConnectionBuilder);
+                _retryQueue.Enqueue(conn);
+            }
+            catch (SocketException exc)
+            {
+                System.Diagnostics.Trace.TraceWarning("Unable to reconnect to greylisted server [{0}]; Message: {1}",
+                                                      server, exc.Message);
+                // Opening the connection failed.  Notify the server manager, which will result in a blacklist.
+                Servers.ErrorOccurred(server, exc);
+                if (conn != null)
+                {
+                    Close(conn);
                 }
             }
         }
