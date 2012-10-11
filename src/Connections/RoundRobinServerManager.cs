@@ -6,31 +6,31 @@ using System.Linq;
 
 namespace FluentCassandra.Connections
 {
-	public class RoundRobinServerManager : IServerManager
-	{
-		private readonly object _lock = new object();
+    public class RoundRobinServerManager : IServerManager
+    {
+        private readonly object _lock = new object();
 
-		private List<Server> _servers;
-		private Queue<Server> _serverQueue;
-		private HashSet<Server> _blackListed;
+        private List<Server> _servers;
+        private Queue<Server> _serverQueue;
+        private HashSet<Server> _blackListed;
         private CircuitBreakerManager _circuitBreakerManager;
         private uint _serverCircuitBreakerErrorThresholdCount;
         private uint _serverCircuitBreakerRetryIntervalMs;
 
-		public RoundRobinServerManager(IConnectionBuilder builder)
-		{
-			_servers = new List<Server>(builder.Servers);
-			_serverQueue = new Queue<Server>(_servers);
-			_blackListed = new HashSet<Server>();
+        public RoundRobinServerManager(IConnectionBuilder builder)
+        {
+            _servers = new List<Server>(builder.Servers);
+            _serverQueue = new Queue<Server>(_servers);
+            _blackListed = new HashSet<Server>();
             _serverCircuitBreakerErrorThresholdCount = builder.ServerCircuitBreakerErrorThresholdCount;
             _serverCircuitBreakerRetryIntervalMs = builder.ServerCircuitBreakerRetryIntervalMs;
             _circuitBreakerManager = new CircuitBreakerManager(onStateChanged: CircuitStateChanged);
             InitializeCircuitBreakers(_serverCircuitBreakerErrorThresholdCount, _serverCircuitBreakerRetryIntervalMs);
-		}
+        }
 
-		private bool IsBlackListed(Server server)
-		{
-			return _blackListed.Contains(server);
+        private bool IsBlackListed(Server server)
+        {
+            return _blackListed.Contains(server);
 		}
 
         /// <summary>
@@ -102,30 +102,25 @@ namespace FluentCassandra.Connections
         #region IServerManager Members
 
         public bool HasNext
-		{
-            get { lock (_lock) { return (_serverQueue.Count - _blackListed.Count) > 0; } }
-		}
+        {
+            get { lock (_lock) { return _serverQueue.Count > 0; } }
+        }
 
-		public Server Next()
-		{
-			Server server;
+        public Server Next()
+        {
+            Server server = null;
 
-			lock (_lock)
-			{
-				do
-				{
-					server = _serverQueue.Dequeue();
+            lock (_lock)
+            {
+                if (_serverQueue.Count > 0)
+                {
+                    server = _serverQueue.Dequeue();
+                    _serverQueue.Enqueue(server);
+                }
+            }
 
-					if (IsBlackListed(server))
-						server = null;
-					else
-						_serverQueue.Enqueue(server);
-				}
-				while (_serverQueue.Count > 0 && server == null);	
-			}
-
-			return server;
-		}
+            return server;
+        }
 
 		public void Add(Server server)
 		{
@@ -150,17 +145,26 @@ namespace FluentCassandra.Connections
             _circuitBreakerManager.ForwardErrorOccurredToBreaker(server.Id);
 		}
 
-		public void BlackList(Server server)
-		{
+        public void BlackList(Server server)
+        {
 			lock (_lock)
 			{
                 if (_blackListed.Add(server))
                 {
                     System.Diagnostics.Trace.TraceWarning("Blacklisted server: {0}.", server);
                     DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Blacklisted, string.Empty));
+
+                    _serverQueue.Clear();
+                    foreach (Server srv in _servers)
+                    {
+                        if (!IsBlackListed(srv))
+                        {
+                            _serverQueue.Enqueue(srv);
+                        }
+                    }
                 }
 			}
-		}
+        }
 
         /// <summary>
         /// Notify the server manager to immediately whitelist the given server.
@@ -217,24 +221,24 @@ namespace FluentCassandra.Connections
 			}
 		}
 
-		#endregion
+        #endregion
 
-		#region IEnumerable<Server> Members
+        #region IEnumerable<Server> Members
 
-		public IEnumerator<Server> GetEnumerator()
-		{
-			return _servers.GetEnumerator();
-		}
+        public IEnumerator<Server> GetEnumerator()
+        {
+            return _servers.GetEnumerator();
+        }
 
-		#endregion
+        #endregion
 
-		#region IEnumerable Members
+        #region IEnumerable Members
 
-		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-		{
-			return GetEnumerator();
-		}
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
 
-		#endregion
-	}
+        #endregion
+    }
 }
