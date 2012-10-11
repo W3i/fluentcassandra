@@ -151,9 +151,6 @@ namespace FluentCassandra.Connections
 			{
                 if (_blackListed.Add(server))
                 {
-                    System.Diagnostics.Trace.TraceWarning("Blacklisted server: {0}.", server);
-                    DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Blacklisted, string.Empty));
-
                     _serverQueue.Clear();
                     foreach (Server srv in _servers)
                     {
@@ -162,6 +159,9 @@ namespace FluentCassandra.Connections
                             _serverQueue.Enqueue(srv);
                         }
                     }
+
+                    System.Diagnostics.Trace.TraceWarning("Blacklisted server: {0}.", server);
+                    DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Blacklisted, string.Empty));
                 }
 			}
         }
