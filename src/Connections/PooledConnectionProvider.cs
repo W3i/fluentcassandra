@@ -161,10 +161,10 @@ namespace FluentCassandra.Connections
                 switch (args.NewState)
                 {
                     case ServerState.Whitelisted:
-                        HandleServerWhitelisted(args.ServerId, args.Host);
+                        HandleServerWhitelisted(args.Server);
                         break;
                     case ServerState.Blacklisted:
-                        HandleServerBlacklisted(args.ServerId, args.Host);
+                        HandleServerBlacklisted(args.Server);
                         break;
                     case ServerState.Greylisted:
                         HandleServerGreylisted(args.Server);
@@ -208,9 +208,8 @@ namespace FluentCassandra.Connections
         /// <summary>
         /// Takes any neccessary action on the pool to free up resources and make the whitelisted server usable again.
         /// </summary>
-        /// <param name="whitelistedServerId">Id of the whitelisted server.</param>
-        /// <param name="whitelistedServerHost">Hostname of the whitelisted server.</param>
-        private void HandleServerWhitelisted(string whitelistedServerId, string whitelistedServerHost)
+        /// <param name="server">Instance of the whitelisted server.</param>
+        private void HandleServerWhitelisted(Server server)
         {
             // Free up resources in the pool and make the server usable again.  Only needed when ConnectionLifetime = 0 (infinity), otherwise connections will eventually
             // die and this server will be re-used again.
@@ -218,7 +217,7 @@ namespace FluentCassandra.Connections
             {
                 lock (_lock)
                 {
-                    System.Diagnostics.Trace.TraceInformation("Clearing the connection pool because server {0} [{1}] has been whitelisted and ConnectionLifetime is infinity.", whitelistedServerHost, whitelistedServerId);
+                    System.Diagnostics.Trace.TraceInformation("Clearing the connection pool because server [{0}] has been whitelisted and ConnectionLifetime is infinity.", server);
                     _usedConnections.Clear();
                     _freeConnections.Clear();
                 }
@@ -228,9 +227,8 @@ namespace FluentCassandra.Connections
         /// <summary>
         /// Cleans up the connections in the pools for the given blacklisted server id.
         /// </summary>
-        /// <param name="blacklistedServerId">Id of the blacklisted server.</param>
-        /// <param name="blacklistedServerHost">Hostname of the blacklisted server.</param>
-        private void HandleServerBlacklisted(string blacklistedServerId, string blacklistedServerHost)
+        /// <param name="blackListedServer">Instance of the blacklisted server.</param>
+        private void HandleServerBlacklisted(Server blackListedServer)
         {
             lock (_lock)
             {
@@ -238,12 +236,12 @@ namespace FluentCassandra.Connections
                 List<IConnection> usedConnsToRemove = new List<IConnection>();
                 for (int u = 0; u < usedCount; u++)
                 {
-                    if (_usedConnections[u].Server.Id.Equals(blacklistedServerId, StringComparison.OrdinalIgnoreCase))
+                    if (_usedConnections[u].Server.Equals(blackListedServer))
                     {
                         usedConnsToRemove.Add(_usedConnections[u]);
                     }
                 }
-                System.Diagnostics.Debug.WriteLine("Removing {0} used connections for failed server {1}", usedConnsToRemove.Count, blacklistedServerHost.ToString());
+                System.Diagnostics.Debug.WriteLine("Removing {0} used connections for failed server {1}", usedConnsToRemove.Count, blackListedServer);
                 usedConnsToRemove.ForEach(conn => _usedConnections.Remove(conn));
 
                 int freeCount = _freeConnections.Count;
@@ -251,15 +249,15 @@ namespace FluentCassandra.Connections
                 {
                     // Clean up the free queue by only requeing those not from the blacklisted server
                     IConnection freeConn = _freeConnections.Dequeue();
-                    if (freeConn.Server.Id.Equals(blacklistedServerId, StringComparison.OrdinalIgnoreCase))
+                    if (freeConn.Server.Equals(blackListedServer))
                     {
-                        _freeConnections.Enqueue(freeConn);
+                        System.Diagnostics.Debug.WriteLine("Closing free connection {0} for failed server {1}", i + 1, blackListedServer);
+                        freeConn.Close();
+                        Close(freeConn);
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("Closing free connection {0} for failed server {1}", i + 1, blacklistedServerHost.ToString());
-                        freeConn.Close();
-                        Close(freeConn);
+                        _freeConnections.Enqueue(freeConn);
                     }
                 }
             }

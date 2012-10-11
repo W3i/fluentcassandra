@@ -110,7 +110,7 @@ namespace FluentCassandra.Connections
         {
             // Don't need to do anything for this manager - we are leaving it blacklisted.
             // ConnectionPools or other listeners can choose how to retry the server.
-            DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Greylisted, string.Empty));
+            DispatchStateChangedEvent(new ServerStateChangedEventArgs(server, ServerState.Greylisted, string.Empty));
         }
 
         #region IServerManager Members
@@ -175,7 +175,7 @@ namespace FluentCassandra.Connections
                     }
 
                     System.Diagnostics.Trace.TraceWarning("Blacklisted server: {0}.", server);
-                    DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Blacklisted, string.Empty));
+                    DispatchStateChangedEvent(new ServerStateChangedEventArgs(server, ServerState.Blacklisted, string.Empty));
                 }
 			}
         }
@@ -195,7 +195,7 @@ namespace FluentCassandra.Connections
                     {
                         _serverQueue.Enqueue(server);
                         System.Diagnostics.Trace.TraceInformation("RRSMgr Whitelisted server: {0}.", server);
-                        DispatchStateChangedEvent(new ServerStateChangedEventArgs(server.Id, server.Host, ServerState.Whitelisted, string.Empty));
+                        DispatchStateChangedEvent(new ServerStateChangedEventArgs(server, ServerState.Whitelisted, string.Empty));
                     }
                 }
             }

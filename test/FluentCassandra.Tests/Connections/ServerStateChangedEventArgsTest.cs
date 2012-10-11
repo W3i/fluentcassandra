@@ -16,15 +16,13 @@ namespace FluentCassandra.Connections.Tests
         [Fact]
         public void ServerStateChangedEventArgsConstructorTest()
         {
-            string serverId = "test server id";
-            string host = "test host";
+            Server server = new Server("test host", 1111);
             ServerState newState = ServerState.Blacklisted;
             string messageData = "test data";
-            ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
+            ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(server, newState, messageData);
 
             Assert.NotNull(target);
-            Assert.Equal(serverId, target.ServerId);
-            Assert.Equal(host, target.Host);
+            Assert.Equal(server, target.Server);
             Assert.Equal(newState, target.NewState);
             Assert.Equal(messageData, target.Message);
         }
@@ -33,72 +31,16 @@ namespace FluentCassandra.Connections.Tests
         ///A test for ServerStateChangedEventArgs Constructor
         ///</summary>
         [Fact]
-        public void ServerStateChangedEventArgsConstructorNullHostTest()
+        public void ServerStateChangedEventArgsConstructorNullServerTest()
         {
             var thrown = Assert.Throws<ArgumentNullException>(delegate()
             {
-                string serverId = "test server id";
-                string host = null;
                 ServerState newState = ServerState.Blacklisted;
                 string messageData = "test data";
-                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
+                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(null, newState, messageData);
             });
 
-            Assert.Equal("host", thrown.ParamName);
-        }
-
-        /// <summary>
-        ///A test for ServerStateChangedEventArgs Constructor
-        ///</summary>
-        [Fact]
-        public void ServerStateChangedEventArgsConstructorNullServerIdTest()
-        {
-            var thrown = Assert.Throws<ArgumentNullException>(delegate()
-            {
-                string serverId = null;
-                string host = "test host";
-                ServerState newState = ServerState.Blacklisted;
-                string messageData = "test data";
-                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
-            });
-
-            Assert.Equal("serverId", thrown.ParamName);
-        }
-
-        /// <summary>
-        ///A test for ServerStateChangedEventArgs Constructor
-        ///</summary>
-        [Fact]
-        public void ServerStateChangedEventArgsConstructorEmptyHostTest()
-        {
-            var thrown = Assert.Throws<ArgumentNullException>(delegate()
-            {
-                string serverId = "test server id";
-                string host = string.Empty;
-                ServerState newState = ServerState.Blacklisted;
-                string messageData = "test data";
-                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
-            });
-
-            Assert.Equal("host", thrown.ParamName);
-        }
-
-        /// <summary>
-        ///A test for ServerStateChangedEventArgs Constructor
-        ///</summary>
-        [Fact]
-        public void ServerStateChangedEventArgsConstructorEmptyServerIdTest()
-        {
-            var thrown = Assert.Throws<ArgumentNullException>(delegate()
-            {
-                string serverId = string.Empty;
-                string host = "test host";
-                ServerState newState = ServerState.Blacklisted;
-                string messageData = "test data";
-                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
-            });
-
-            Assert.Equal("serverId", thrown.ParamName);
+            Assert.Equal("server", thrown.ParamName);
         }
 
         /// <summary>
@@ -109,11 +51,10 @@ namespace FluentCassandra.Connections.Tests
         {
             var thrown = Assert.Throws<ArgumentOutOfRangeException>(delegate()
             {
-                string serverId = "test server id";
-                string host = "test host";
+                Server server = new Server();
                 ServerState newState = (ServerState)100;
                 string messageData = "test data";
-                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(serverId, host, newState, messageData);
+                ServerStateChangedEventArgs target = new ServerStateChangedEventArgs(server, newState, messageData);
             });
 
             Assert.Equal("newState", thrown.ParamName);
