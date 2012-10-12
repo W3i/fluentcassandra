@@ -24,7 +24,7 @@ namespace FluentCassandra.Connections
             ConnectionLifetime = builder.ConnectionLifetime;
 
             _maintenanceTimer = new Timer(o => Cleanup(), null, 30000L, 30000L);
-            Servers.ServerStateChanged += new EventHandler<ServerStateChangedEventArgs>(HandleServerStateChanged);
+            //Servers.ServerStateChanged event handler assigned in base class
         }
 
         /// <summary>
@@ -154,7 +154,7 @@ namespace FluentCassandra.Connections
         /// </summary>
         /// <param name="source">The event source.</param>
         /// <param name="args">The data associated with the event.</param>
-        private void HandleServerStateChanged(object source, ServerStateChangedEventArgs args)
+        protected override void HandleServerStateChanged(object source, ServerStateChangedEventArgs args)
         {
             if (args != null)
             {
@@ -185,24 +185,11 @@ namespace FluentCassandra.Connections
         {
             // Force a single connection into the pool so that the app tries the machine again. It should only be used once or at most a handful of times because
             // a single success will result in whitelisting, and failure in re-blacklisting.
-            IConnection conn = null;
-            try
-            {
-                System.Diagnostics.Trace.TraceInformation("Attempting to create a new connection to greylisted server [{0]} to retry it.");
-                conn = new Connection(server, ConnectionBuilder);
-                _freeConnections.Enqueue(conn);
-            }
-            catch (System.Net.Sockets.SocketException exc)
-            {
-                System.Diagnostics.Trace.TraceWarning("Unable to reconnect to greylisted server [{0}]; Message: {1}",
-                                                      server, exc.Message);
-                // Opening the connection failed.  Notify the server manager, which will result in a blacklist.
-                Servers.ErrorOccurred(server, exc);
-                if (conn != null)
-                {
-                    Close(conn);
-                }
-            }
+
+            System.Diagnostics.Trace.TraceInformation(
+                    "Pool attempting to create a new connection to greylisted server [{0}] to retry it.", server);
+            IConnection conn = new Connection(server, ConnectionBuilder);
+            _freeConnections.Enqueue(conn);
         }
 
         /// <summary>
