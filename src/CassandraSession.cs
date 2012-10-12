@@ -15,7 +15,9 @@ namespace FluentCassandra
                                                                               typeof(System.IO.IOException),
                                                                               typeof(System.Net.Sockets.SocketException),
                                                                               typeof(Thrift.Transport.TTransportException),
-                                                                              typeof(Thrift.TApplicationException)
+                                                                              typeof(Thrift.TApplicationException),
+                                                                              typeof(Apache.Cassandra.TimedOutException),
+                                                                              typeof(Apache.Cassandra.UnavailableException)
                                                                           };
 
 		/// <summary>
